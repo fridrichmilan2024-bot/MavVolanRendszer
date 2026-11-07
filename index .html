@@ -1,0 +1,274 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MÁV-VOLÁN Rendszer</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Arial, sans-serif; }
+        body { background-color: #0b1a30; color: #fff; padding: 15px; }
+        
+        /* MÁV TÉMA STÍLUSOK */
+        body.mav-mode { background-color: #001933; }
+        body.mav-mode .board-container { background-color: #002244; border-color: #004488; }
+        body.mav-mode .board-header { background-color: #003366; }
+        body.mav-mode .table-header { background-color: #001f3f; }
+        body.mav-mode .line-badge { background-color: #0055a5; color: #fff; border: 1px solid #ffcc00; }
+        body.mav-mode .time-text { color: #ffcc00; }
+
+        /* FELSŐ MENÜSÁV */
+        .top-menu { display: flex; gap: 8px; max-width: 900px; margin: 0 auto 15px auto; flex-wrap: wrap; }
+        .menu-btn { flex: 1; padding: 10px; background-color: #1a2a40; color: #fff; border: 1px solid #2e4057; border-radius: 6px; font-weight: bold; cursor: pointer; text-align: center; font-size: 12px; }
+        .menu-btn.active { background-color: #ffcc00; color: #000; }
+
+        /* INDULÁSI TÁBLA */
+        .board-container { background-color: #0b1a30; border: 3px solid #1e2a3a; border-radius: 8px; overflow: hidden; max-width: 900px; margin: 0 auto 20px auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .board-header { background-color: #1a2a40; padding: 10px 15px; display: flex; justify-content: space-between; align-items: center; border-bottom: 2px solid #2e4057; }
+        .board-title { font-size: 16px; font-weight: bold; color: #ffffff; }
+        .board-clock { font-size: 18px; font-weight: bold; color: #ffcc00; font-family: monospace; }
+        
+        .table-header { display: flex; background-color: #142235; padding: 8px 15px; font-size: 11px; color: #a0b0c0; text-transform: uppercase; border-bottom: 1px solid #2e4057; }
+        .col-time-line { width: 35%; display: flex; align-items: center; gap: 8px; }
+        .col-dest { width: 50%; }
+        .col-plat { width: 15%; text-align: right; }
+
+        .departures-list { list-style: none; }
+        .departure-row { display: flex; align-items: center; padding: 10px 15px; border-bottom: 1px solid #1a2a40; }
+        .departure-row:nth-child(even) { background-color: #0d1e37; }
+        .departure-row:nth-child(odd) { background-color: #0b1a30; }
+
+        .time-text { font-size: 20px; font-weight: bold; color: #ffffff; }
+        .line-badge { background-color: #ffcc00; color: #121212; font-weight: bold; font-size: 18px; padding: 3px 8px; border-radius: 6px; display: inline-block; text-align: center; }
+        .dest-title { font-size: 16px; font-weight: bold; color: #ffffff; }
+        .dest-via { font-size: 11px; color: #90a0b0; margin-top: 2px; }
+        .platform-badge { background-color: #ffaa00; color: #000; font-weight: bold; font-size: 16px; width: 32px; height: 32px; border-radius: 50%; display: flex; align-items: center; justify-content: center; margin-left: auto; }
+
+        /* PANELER (SZERKESZTŐ, TÉRKÉP, BEÁLLÍTÁSOK) */
+        .panel { display: none; background-color: #1e1e1e; border-radius: 8px; padding: 15px; max-width: 900px; margin: 0 auto 20px auto; border: 1px solid #333; }
+        .panel.active { display: block; }
+        .panel h2 { font-size: 15px; margin-bottom: 12px; color: #ffcc00; border-bottom: 1px solid #444; padding-bottom: 6px; }
+
+        .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 12px; }
+        .form-group { display: flex; flex-direction: column; }
+        .form-group.full-width { grid-column: span 2; }
+        .form-group label { font-size: 11px; color: #aaa; margin-bottom: 3px; }
+        .form-group input { background-color: #2b2b2b; border: 1px solid #444; color: #fff; padding: 8px; border-radius: 4px; font-size: 13px; }
+        .btn-add { background-color: #ffcc00; color: #000; font-weight: bold; padding: 10px; border: none; border-radius: 4px; cursor: pointer; width: 100%; font-size: 14px; }
+        
+        .manage-list { margin-top: 10px; max-height: 200px; overflow-y: auto; }
+        .manage-item { display: flex; justify-content: space-between; align-items: center; background-color: #2a2a2a; padding: 8px; border-radius: 4px; margin-bottom: 5px; font-size: 12px; }
+        .btn-delete { background-color: #ff4444; color: #fff; border: none; padding: 4px 8px; border-radius: 4px; cursor: pointer; font-size: 11px; }
+
+        /* TÉRKÉPES KÖVETŐ */
+        .map-box { width: 100%; height: 250px; background-color: #152238; border-radius: 8px; position: relative; overflow: hidden; border: 2px solid #2e4057; }
+        .map-vehicle { position: absolute; padding: 5px 8px; border-radius: 15px; font-size: 10px; font-weight: bold; color: #000; transition: all 1.5s linear; }
+        .map-vehicle.bus { background-color: #ffcc00; }
+        .map-vehicle.train { background-color: #00aaff; color: #fff; }
+    </style>
+</head>
+<body>
+
+    <!-- MENÜSÁV -->
+    <div class="top-menu">
+        <button class="menu-btn active" id="mode-btn" onclick="toggleMode()">Mód: VOLÁN BUSZ</button>
+        <button class="menu-btn" onclick="showPanel('editor')">Járat Szerkesztő</button>
+        <button class="menu-btn" onclick="showPanel('map')">Térképes Követő</button>
+        <button class="menu-btn" onclick="showPanel('settings')">Beállítások</button>
+    </div>
+
+    <!-- INDULÁSI TÁBLA -->
+    <div class="board-container">
+        <div class="board-header">
+            <div class="board-title" id="board-header-title">Volán Induló Járatok / Departures</div>
+            <div class="board-clock" id="live-clock">00:00:00</div>
+        </div>
+        <div class="table-header">
+            <div class="col-time-line" id="col-title-1">Indulási idő / Vonal</div>
+            <div class="col-dest">Célállomás, útirány</div>
+            <div class="col-plat" id="col-title-2">Kocsiállás</div>
+        </div>
+        <ul class="departures-list" id="board-list"></ul>
+    </div>
+
+    <!-- JÁRAT SZERKESZTŐ PANEL -->
+    <div class="panel active" id="panel-editor">
+        <h2>ÚJ JÁRAT HOZZÁADÁSA</h2>
+        <div class="form-grid">
+            <div class="form-group">
+                <label>Indulási idő (pl. 11:05)</label>
+                <input type="text" id="inp-time" placeholder="11:05">
+            </div>
+            <div class="form-group">
+                <label id="lbl-line">Vonalszám (pl. 1134)</label>
+                <input type="text" id="inp-line" placeholder="1134">
+            </div>
+            <div class="form-group">
+                <label>Célállomás (pl. Siklós)</label>
+                <input type="text" id="inp-dest" placeholder="Siklós">
+            </div>
+            <div class="form-group">
+                <label id="lbl-plat">Kocsiállás (pl. 11)</label>
+                <input type="text" id="inp-plat" placeholder="11">
+            </div>
+            <div class="form-group full-width">
+                <label>Útirány (pl. Szekszárd-Bonyhád-Pécs)</label>
+                <input type="text" id="inp-via" placeholder="A köztes megállók...">
+            </div>
+        </div>
+        <button class="btn-add" onclick="addRoute()">Járat Felvétele a Táblára</button>
+
+        <h2 style="margin-top: 15px;">Meglévő Járatok Törlése</h2>
+        <div class="manage-list" id="manage-list"></div>
+    </div>
+
+    <!-- TÉRKÉPES KÖVETŐ PANEL -->
+    <div class="panel" id="panel-map">
+        <h2>ÉLŐ TÉRKÉPES JÁRMŰKÖVETŐ (MÁV & VOLÁN)</h2>
+        <div class="map-box">
+            <div class="map-vehicle bus" id="v-bus1" style="top: 20%; left: 10%;">🚌 Volán 1134</div>
+            <div class="map-vehicle bus" id="v-bus2" style="top: 60%; left: 40%;">🚌 Volán 1172</div>
+            <div class="map-vehicle train" id="v-train1" style="top: 40%; left: 70%;">🚆 MÁV IC 802</div>
+            <div class="map-vehicle train" id="v-train2" style="top: 80%; left: 20%;">🚆 MÁV S50</div>
+        </div>
+    </div>
+
+    <!-- BEÁLLÍTÁSOK PANEL -->
+    <div class="panel" id="panel-settings">
+        <h2>BEÁLLÍTÁSOK</h2>
+        <p style="font-size: 13px; color: #aaa;">Alkalmazás verzió: 1.0 (MÁV-VOLÁN Hibrid)</p>
+    </div>
+
+    <script>
+        // MÓD VÁLTÓ LOGIKA
+        var isMavMode = false;
+        var volanRoutes = [
+            { time: "11:10", line: "1172", dest: "Budapest", via: "Mernye", plat: "7" },
+            { time: "11:25", line: "1134", dest: "Siklós", via: "Pécs-Harkány", plat: "11" }
+        ];
+        var mavRoutes = [
+            { time: "10:25", line: "IC 802", dest: "Zalaegerszeg", via: "Székesfehérvár", plat: "3" },
+            { time: "10:40", line: "S50", dest: "Szolnok", via: "Cegléd", plat: "1" }
+        ];
+
+        function toggleMode() {
+            isMavMode = !isMavMode;
+            var modeBtn = document.getElementById('mode-btn');
+            
+            if (isMavMode) {
+                document.body.classList.add('mav-mode');
+                modeBtn.innerText = "Mód: MÁV VONAT";
+                document.getElementById('board-header-title').innerText = "MÁV Induló Vonatok / Departures";
+                document.getElementById('col-title-1').innerText = "Indulás / Vonatszám";
+                document.getElementById('col-title-2').innerText = "Vágány";
+                document.getElementById('lbl-line').innerText = "Vonatszám / Típus";
+                document.getElementById('lbl-plat').innerText = "Vágány (pl. 3)";
+            } else {
+                document.body.classList.remove('mav-mode');
+                modeBtn.innerText = "Mód: VOLÁN BUSZ";
+                document.getElementById('board-header-title').innerText = "Volán Induló Járatok / Departures";
+                document.getElementById('col-title-1').innerText = "Indulási idő / Vonal";
+                document.getElementById('col-title-2').innerText = "Kocsiállás";
+                document.getElementById('lbl-line').innerText = "Vonalszám (pl. 1134)";
+                document.getElementById('lbl-plat').innerText = "Kocsiállás (pl. 11)";
+            }
+            renderBoard();
+        }
+
+        function showPanel(panelId) {
+            document.getElementById('panel-editor').classList.remove('active');
+            document.getElementById('panel-map').classList.remove('active');
+            document.getElementById('panel-settings').classList.remove('active');
+            document.getElementById('panel-' + panelId).classList.add('active');
+        }
+
+        function renderBoard() {
+            var list = document.getElementById('board-list');
+            var manageList = document.getElementById('manage-list');
+            list.innerHTML = '';
+            manageList.innerHTML = '';
+
+            var currentRoutes = isMavMode ? mavRoutes : volanRoutes;
+
+            for (var i = 0; i < currentRoutes.length; i++) {
+                (function(index) {
+                    var item = currentRoutes[index];
+                    var li = document.createElement('li');
+                    li.className = 'departure-row';
+                    li.innerHTML = '<div class="col-time-line">' +
+                                   '<span class="time-text">' + item.time + '</span>' +
+                                   '<span class="line-badge">' + item.line + '</span>' +
+                                   '</div>' +
+                                   '<div class="col-dest">' +
+                                   '<div class="dest-title">' + item.dest + '</div>' +
+                                   '<div class="dest-via">' + item.via + '</div>' +
+                                   '</div>' +
+                                   '<div class="col-plat"><span class="platform-badge">' + item.plat + '</span></div>';
+                    list.appendChild(li);
+
+                    var mLi = document.createElement('div');
+                    mLi.className = 'manage-item';
+                    mLi.innerHTML = '<span><b>' + item.time + '</b> [' + item.line + '] - ' + item.dest + '</span>';
+                    
+                    var delBtn = document.createElement('button');
+                    delBtn.className = 'btn-delete';
+                    delBtn.innerText = 'Törlés';
+                    delBtn.onclick = function() { deleteRoute(index); };
+                    mLi.appendChild(delBtn);
+                    
+                    manageList.appendChild(mLi);
+                })(i);
+            }
+        }
+
+        function addRoute() {
+            var time = document.getElementById('inp-time').value;
+            var line = document.getElementById('inp-line').value;
+            var dest = document.getElementById('inp-dest').value;
+            var via = document.getElementById('inp-via').value;
+            var plat = document.getElementById('inp-plat').value;
+
+            if(!time || !dest) {
+                alert('Legalább az időt és a célállomást töltsd ki!');
+                return;
+            }
+
+            var currentRoutes = isMavMode ? mavRoutes : volanRoutes;
+            currentRoutes.push({ time: time, line: line, dest: dest, via: via, plat: plat });
+            renderBoard();
+
+            document.getElementById('inp-time').value = '';
+            document.getElementById('inp-line').value = '';
+            document.getElementById('inp-dest').value = '';
+            document.getElementById('inp-via').value = '';
+            document.getElementById('inp-plat').value = '';
+        }
+
+        function deleteRoute(index) {
+            var currentRoutes = isMavMode ? mavRoutes : volanRoutes;
+            currentRoutes.splice(index, 1);
+            renderBoard();
+        }
+
+        // TÉRKÉP MOZGATÁS SIMULÁCIÓ
+        setInterval(function() {
+            var v1 = document.getElementById('v-bus1');
+            var v2 = document.getElementById('v-train1');
+            if(v1) {
+                v1.style.left = (Math.random() * 70 + 10) + '%';
+                v1.style.top = (Math.random() * 70 + 10) + '%';
+            }
+            if(v2) {
+                v2.style.left = (Math.random() * 70 + 10) + '%';
+                v2.style.top = (Math.random() * 70 + 10) + '%';
+            }
+        }, 3000);
+
+        setInterval(function() {
+            var now = new Date();
+            document.getElementById('live-clock').innerText = now.toTimeString().split(' ')[0];
+        }, 1000);
+
+        renderBoard();
+    </script>
+</body>
+</html>
